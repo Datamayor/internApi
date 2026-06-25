@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -23,9 +24,10 @@ type User struct {
 	ID        int       `db:"id" json:"id"`
 	Name      string    `db:"name" json:"name"`
 	Email     string    `db:"email" json:"email"`
-	Password  string    `db:"password" json:"-"` // never send password in response
+	Password  string    `db:"password" json:"-"`
 	Role      string    `db:"role" json:"role"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // POST /api/auth/register
@@ -47,12 +49,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default role to intern if not provided
 	if body.Role == "" {
 		body.Role = "intern"
 	}
 
-	// Hash the password
 	hashed, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to hash password")
@@ -67,7 +67,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	).StructScan(&user)
 
 	if err != nil {
-		// Likely a duplicate email
 		middleware.Error(w, http.StatusConflict, "email already in use")
 		return
 	}
@@ -88,11 +87,16 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user User
-	err := h.DB.QueryRowx(`SELECT * FROM users WHERE email = $1`, body.Email).StructScan(&user)
+	err := h.DB.QueryRowx(
+		`SELECT id, name, email, password, role, created_at FROM users WHERE email = $1`,
+		body.Email,
+	).StructScan(&user)
+
 	if err == sql.ErrNoRows {
 		middleware.Error(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	} else if err != nil {
+		log.Printf("login error: %v", err)
 		middleware.Error(w, http.StatusInternalServerError, "database error")
 		return
 	}
@@ -114,7 +118,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save refresh token in DB
 	_, _ = h.DB.Exec(
 		`INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`,
 		user.ID, refreshToken, time.Now().Add(time.Duration(h.JWTRefreshExpiryHours)*time.Hour),
@@ -134,7 +137,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 
-	// Delete the refresh token from DB
 	if body.RefreshToken != "" {
 		h.DB.Exec(`DELETE FROM refresh_tokens WHERE token = $1`, body.RefreshToken)
 	}
@@ -147,7 +149,9 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 
 	var user User
-	err := h.DB.QueryRowx(`SELECT id, name, email, role, created_at FROM users WHERE id = $1`, userID).StructScan(&user)
+	err := h.DB.QueryRowx(
+		`SELECT id, name, email, password, role, created_at, updated_at FROM users WHERE email = $1`, userID,
+	).StructScan(&user)
 	if err != nil {
 		middleware.Error(w, http.StatusNotFound, "user not found")
 		return
@@ -167,7 +171,6 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the token
 	token, err := jwt.Parse(body.RefreshToken, func(t *jwt.Token) (interface{}, error) {
 		return []byte(h.JWTSecret), nil
 	})
@@ -180,15 +183,16 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	userID := int(claims["user_id"].(float64))
 	role := claims["role"].(string)
 
-	// Check if this refresh token exists in DB
 	var count int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()`, body.RefreshToken).Scan(&count)
+	h.DB.QueryRow(
+		`SELECT COUNT(*) FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()`,
+		body.RefreshToken,
+	).Scan(&count)
 	if count == 0 {
 		middleware.Error(w, http.StatusUnauthorized, "refresh token not found or expired")
 		return
 	}
 
-	// Issue new access token
 	newAccessToken, err := h.generateToken(userID, role, h.JWTExpiryHours)
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to generate new token")
