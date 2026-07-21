@@ -15,6 +15,7 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+	DatabaseURL string
 
 	JWTSecret             string
 	JWTExpiryHours        int
@@ -24,13 +25,13 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	// Load .env file (ignore error if file doesn't exist — env vars may be set already)
 	_ = godotenv.Load()
 
 	jwtExpiry, _ := strconv.Atoi(getEnv("JWT_EXPIRY_HOURS", "24"))
 	jwtRefresh, _ := strconv.Atoi(getEnv("JWT_REFRESH_EXPIRY_HOURS", "168"))
 
 	cfg := &Config{
+		DatabaseURL:           os.Getenv("DATABASE_URL"),
 		DBHost:                getEnv("DB_HOST", "localhost"),
 		DBPort:                getEnv("DB_PORT", "5432"),
 		DBUser:                getEnv("DB_USER", "postgres"),
@@ -40,7 +41,7 @@ func Load() (*Config, error) {
 		JWTSecret:             getEnv("JWT_SECRET", ""),
 		JWTExpiryHours:        jwtExpiry,
 		JWTRefreshExpiryHours: jwtRefresh,
-		ServerPort:            getEnv("SERVER_PORT", "8080"),
+		ServerPort:            getEnv("PORT", getEnv("SERVER_PORT", "8080")),
 	}
 
 	if cfg.JWTSecret == "" {
@@ -51,6 +52,11 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) DBConnectionString() string {
+	// If DATABASE_URL is set (Render), use it directly
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
+	// Otherwise use individual fields (local)
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,
