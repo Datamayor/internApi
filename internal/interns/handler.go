@@ -95,10 +95,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var intern Intern
 	err := h.DB.QueryRowx(`
-		INSERT INTO interns (user_id, department_id, supervisor_id, start_date, end_date, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING *
-	`, body.UserID, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status,
+    INSERT INTO interns (user_id, department_id, supervisor_id, start_date, end_date, status)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING id, user_id, department_id, supervisor_id, start_date, end_date, status, created_at
+`, body.UserID, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status,
 	).StructScan(&intern)
 
 	if err != nil {
