@@ -25,6 +25,7 @@ type Intern struct {
 	EndDate      *time.Time `db:"end_date" json:"end_date"`
 	Status       string     `db:"status" json:"status"`
 	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time  `db:"updated_at" json:"updated_at"` // <-- add this
 	// Joined fields from users table
 	Name  string `db:"name" json:"name"`
 	Email string `db:"email" json:"email"`
