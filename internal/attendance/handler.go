@@ -1,8 +1,10 @@
 package attendance
 
 import (
+	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -27,6 +29,7 @@ type Attendance struct {
 func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	var records []Attendance
 	if err := h.DB.Select(&records, `SELECT * FROM attendance ORDER BY date DESC`); err != nil {
+		log.Println("GetAll attendance db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch attendance")
 		return
 	}
@@ -39,6 +42,7 @@ func (h *Handler) GetByIntern(w http.ResponseWriter, r *http.Request) {
 
 	var records []Attendance
 	if err := h.DB.Select(&records, `SELECT * FROM attendance WHERE intern_id = $1 ORDER BY date DESC`, internID); err != nil {
+		log.Println("GetByIntern attendance db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch attendance")
 		return
 	}
@@ -80,15 +84,17 @@ func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) {
 			`UPDATE attendance SET check_in = NOW() WHERE id = $1`,
 			existingID,
 		)
-	} else {
+	} else if err == sql.ErrNoRows {
 		// No record yet — create one
 		_, err = h.DB.Exec(
 			`INSERT INTO attendance (intern_id, date, check_in) VALUES ($1, $2, NOW())`,
 			body.InternID, date,
 		)
 	}
+	// else: err is some other DB error (e.g. connection issue) — fall through and report it below
 
 	if err != nil {
+		log.Println("CheckIn db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to record check-in")
 		return
 	}
@@ -123,6 +129,7 @@ func (h *Handler) CheckOut(w http.ResponseWriter, r *http.Request) {
 		body.InternID, date,
 	)
 	if err != nil {
+		log.Println("CheckOut db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to record check-out")
 		return
 	}
