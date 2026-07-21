@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -21,6 +22,7 @@ type Supervisor struct {
 	DepartmentID *int      `db:"department_id" json:"department_id"`
 	Phone        string    `db:"phone" json:"phone"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 	// Joined from users
 	Name  string `db:"name" json:"name"`
 	Email string `db:"email" json:"email"`
@@ -36,6 +38,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 		ORDER BY u.name
 	`)
 	if err != nil {
+		log.Println("GetAll supervisors db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch supervisors")
 		return
 	}
@@ -56,6 +59,10 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 
 	if err == sql.ErrNoRows {
 		middleware.Error(w, http.StatusNotFound, "supervisor not found")
+		return
+	} else if err != nil {
+		log.Println("GetOne supervisors db error:", err)
+		middleware.Error(w, http.StatusInternalServerError, "database error")
 		return
 	}
 
@@ -87,6 +94,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	).StructScan(&s)
 
 	if err != nil {
+		log.Println("Create supervisor db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to create supervisor")
 		return
 	}
@@ -113,6 +121,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		body.DepartmentID, body.Phone, id,
 	)
 	if err != nil {
+		log.Println("Update supervisor db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to update supervisor")
 		return
 	}
@@ -132,6 +141,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.DB.Exec(`DELETE FROM supervisors WHERE id = $1`, id)
 	if err != nil {
+		log.Println("Delete supervisor db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to delete supervisor")
 		return
 	}
