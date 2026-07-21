@@ -67,3 +67,25 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+
+CREATE TABLE IF NOT EXISTS announcements (
+    id         SERIAL PRIMARY KEY,
+    title      VARCHAR(200) NOT NULL,
+    content    TEXT NOT NULL,
+    author_id  INT REFERENCES users(id) ON DELETE SET NULL,
+    target     VARCHAR(20) DEFAULT 'all', -- 'all', 'intern', 'staff'
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS internships (
+    id          SERIAL PRIMARY KEY,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    department  VARCHAR(100),
+    duration    VARCHAR(100),
+    location    VARCHAR(100),
+    is_open     BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMP DEFAULT NOW(),
+    updated_at  TIMESTAMP DEFAULT NOW()
+);

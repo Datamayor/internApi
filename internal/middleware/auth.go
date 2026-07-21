@@ -50,8 +50,29 @@ func Authenticate(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			userID := int(claims["user_id"].(float64))
-			userRole := claims["role"].(string)
+			// Reject anything that isn't an access token — in particular,
+			// a refresh token must not be usable as a bearer credential
+			// for regular API calls. This is also what makes logout /
+			// password-change revocation actually effective, since those
+			// only invalidate rows in the refresh_tokens table.
+			tokenType, ok := claims["type"].(string)
+			if !ok || tokenType != "access" {
+				http.Error(w, `{"error":"invalid token type"}`, http.StatusUnauthorized)
+				return
+			}
+
+			userIDf, ok := claims["user_id"].(float64)
+			if !ok {
+				http.Error(w, `{"error":"invalid token claims"}`, http.StatusUnauthorized)
+				return
+			}
+			userID := int(userIDf)
+
+			userRole, ok := claims["role"].(string)
+			if !ok {
+				http.Error(w, `{"error":"invalid token claims"}`, http.StatusUnauthorized)
+				return
+			}
 
 			// Store user info in context so handlers can read it
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
