@@ -3,6 +3,7 @@ package evaluations
 import (
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -58,6 +59,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	`, body.InternID, body.SupervisorID, body.Score, body.Comments, body.Period).StructScan(&eval)
 
 	if err != nil {
+		log.Println("Create evaluation db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to create evaluation")
 		return
 	}
@@ -67,8 +69,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/evaluations — all evaluations
 func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
-	var evals []Evaluation
+	evals := []Evaluation{}
 	if err := h.DB.Select(&evals, `SELECT * FROM evaluations ORDER BY created_at DESC`); err != nil {
+		log.Println("GetAll evaluations db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch evaluations")
 		return
 	}
@@ -79,10 +82,11 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetByIntern(w http.ResponseWriter, r *http.Request) {
 	internID := chi.URLParam(r, "internId")
 
-	var evals []Evaluation
+	evals := []Evaluation{}
 	if err := h.DB.Select(&evals,
 		`SELECT * FROM evaluations WHERE intern_id = $1 ORDER BY created_at DESC`, internID,
 	); err != nil {
+		log.Println("GetByIntern evaluations db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch evaluations")
 		return
 	}
@@ -116,6 +120,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	`, body.Score, body.Comments, body.Period, id)
 
 	if err != nil {
+		log.Println("Update evaluation db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to update evaluation")
 		return
 	}
