@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -25,8 +26,9 @@ type Department struct {
 
 // GET /api/departments
 func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
-	var departments []Department
+	departments := []Department{}
 	if err := h.DB.Select(&departments, `SELECT * FROM departments ORDER BY name`); err != nil {
+		log.Println("GetAll departments db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch departments")
 		return
 	}
@@ -57,6 +59,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	).StructScan(&dept)
 
 	if err != nil {
+		log.Println("Create department db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to create department")
 		return
 	}
@@ -83,6 +86,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		body.Name, body.Description, id,
 	)
 	if err != nil {
+		log.Println("Update department db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to update department")
 		return
 	}
@@ -102,6 +106,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.DB.Exec(`DELETE FROM departments WHERE id = $1`, id)
 	if err != nil {
+		log.Println("Delete department db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to delete department")
 		return
 	}
@@ -115,7 +120,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	middleware.JSON(w, http.StatusOK, map[string]string{"message": "department deleted"})
 }
 
-// GET /api/departments/:id — bonus: get single department
+// GET /api/departments/:id — get single department
 func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -123,6 +128,10 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	err := h.DB.QueryRowx(`SELECT * FROM departments WHERE id = $1`, id).StructScan(&dept)
 	if err == sql.ErrNoRows {
 		middleware.Error(w, http.StatusNotFound, "department not found")
+		return
+	} else if err != nil {
+		log.Println("GetOne department db error:", err)
+		middleware.Error(w, http.StatusInternalServerError, "database error")
 		return
 	}
 
