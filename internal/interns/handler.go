@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
+	"log"
 	"net/http"
 	"time"
 
@@ -39,6 +40,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 		ORDER BY i.created_at DESC
 	`)
 	if err != nil {
+		log.Println("GetAll db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch interns")
 		return
 	}
@@ -61,6 +63,7 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 		middleware.Error(w, http.StatusNotFound, "intern not found")
 		return
 	} else if err != nil {
+		log.Println("GetOne db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "database error")
 		return
 	}
@@ -102,6 +105,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	).StructScan(&intern)
 
 	if err != nil {
+		log.Println("Create db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to create intern")
 		return
 	}
@@ -133,6 +137,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	`, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status, id)
 
 	if err != nil {
+		log.Println("Update db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to update intern")
 		return
 	}
@@ -146,6 +151,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.DB.Exec(`DELETE FROM interns WHERE id = $1`, id)
 	if err != nil {
+		log.Println("Delete db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to delete intern")
 		return
 	}
