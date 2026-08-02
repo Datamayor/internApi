@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     name        VARCHAR(100) NOT NULL,
     email       VARCHAR(100) UNIQUE NOT NULL,
     password    VARCHAR(255) NOT NULL,
-    role        VARCHAR(20) NOT NULL DEFAULT 'intern', -- 'admin', 'supervisor', 'intern'
+    role        VARCHAR(20) NOT NULL DEFAULT 'intern' CHECK (role IN ('intern', 'hr', 'supervisor')),
     created_at  TIMESTAMP DEFAULT NOW(),
     updated_at  TIMESTAMP DEFAULT NOW()
 );
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS interns (
     supervisor_id INT REFERENCES supervisors(id) ON DELETE SET NULL,
     start_date    DATE,
     end_date      DATE,
-    status        VARCHAR(20) DEFAULT 'active', -- 'active', 'completed', 'terminated'
+    status        VARCHAR(20) DEFAULT 'active',
     created_at    TIMESTAMP DEFAULT NOW(),
     updated_at    TIMESTAMP DEFAULT NOW()
 );
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
     supervisor_id INT REFERENCES supervisors(id) ON DELETE SET NULL,
     score         INT CHECK (score >= 1 AND score <= 10),
     comments      TEXT,
-    period        VARCHAR(50), -- e.g. 'Week 1', 'Month 1'
+    period        VARCHAR(50),
     created_at    TIMESTAMP DEFAULT NOW(),
     updated_at    TIMESTAMP DEFAULT NOW()
 );
@@ -68,13 +68,12 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-
 CREATE TABLE IF NOT EXISTS announcements (
     id         SERIAL PRIMARY KEY,
     title      VARCHAR(200) NOT NULL,
     content    TEXT NOT NULL,
     author_id  INT REFERENCES users(id) ON DELETE SET NULL,
-    target     VARCHAR(20) DEFAULT 'all', -- 'all', 'intern', 'staff'
+    target     VARCHAR(20) DEFAULT 'all',
     created_at TIMESTAMP DEFAULT NOW()
 );
 

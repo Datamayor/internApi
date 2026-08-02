@@ -30,79 +30,99 @@ func main() {
 	database := db.Connect(cfg)
 	defer database.Close()
 
-	authHandler         := &auth.Handler{DB: database, JWTSecret: cfg.JWTSecret, JWTExpiryHours: cfg.JWTExpiryHours, JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours}
-	internHandler       := &interns.Handler{DB: database}
-	deptHandler         := &departments.Handler{DB: database}
-	supervisorHandler   := &supervisors.Handler{DB: database}
-	attendanceHandler   := &attendance.Handler{DB: database}
-	evaluationHandler   := &evaluations.Handler{DB: database}
+	authHandler := &auth.Handler{DB: database, JWTSecret: cfg.JWTSecret, JWTExpiryHours: cfg.JWTExpiryHours, JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours}
+	internHandler := &interns.Handler{DB: database}
+	deptHandler := &departments.Handler{DB: database}
+	supervisorHandler := &supervisors.Handler{DB: database}
+	attendanceHandler := &attendance.Handler{DB: database}
+	evaluationHandler := &evaluations.Handler{DB: database}
 	announcementHandler := &announcements.Handler{DB: database}
-	internshipHandler   := &internships.Handler{DB: database}
+	internshipHandler := &internships.Handler{DB: database}
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(corsMiddleware)
 
-	// ── Public routes ───────────────────────────────────────────────────────
+	// ── Public routes (no token needed) ────────────────────────────────────
 	r.Post("/api/auth/register", authHandler.Register)
 	r.Post("/api/auth/login", authHandler.Login)
 	r.Post("/api/auth/refresh-token", authHandler.RefreshToken)
-
-	// Public internship listings
 	r.Get("/api/internships", internshipHandler.GetAll)
 	r.Get("/api/internships/{id}", internshipHandler.GetOne)
 
-	// ── Protected routes ────────────────────────────────────────────────────
+	// ── All authenticated users ─────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 
-		// Auth
+		// Auth — any logged in user
 		r.Post("/api/auth/logout", authHandler.Logout)
 		r.Get("/api/auth/profile", authHandler.Profile)
 		r.Put("/api/auth/profile", authHandler.UpdateProfile)
 		r.Put("/api/auth/change-password", authHandler.ChangePassword)
 
-		// Interns
-		r.Get("/api/interns", internHandler.GetAll)
-		r.Get("/api/interns/{id}", internHandler.GetOne)
-		r.Post("/api/interns", internHandler.Create)
-		r.Put("/api/interns/{id}", internHandler.Update)
-		r.Delete("/api/interns/{id}", internHandler.Delete)
-
-		// Departments
+		// Any logged in user can read these
+		r.Get("/api/announcements", announcementHandler.GetAll)
+		r.Get("/api/announcements/{id}", announcementHandler.GetOne)
+		r.Get("/api/attendance", attendanceHandler.GetAll)
+		r.Get("/api/attendance/{internId}", attendanceHandler.GetByIntern)
+		r.Get("/api/evaluations", evaluationHandler.GetAll)
+		r.Get("/api/evaluations/{internId}", evaluationHandler.GetByIntern)
 		r.Get("/api/departments", deptHandler.GetAll)
 		r.Get("/api/departments/{id}", deptHandler.GetOne)
+		r.Get("/api/supervisors", supervisorHandler.GetAll)
+		r.Get("/api/supervisors/{id}", supervisorHandler.GetOne)
+		r.Get("/api/interns", internHandler.GetAll)
+		r.Get("/api/interns/{id}", internHandler.GetOne)
+	})
+
+	// ── Intern only ─────────────────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Authenticate(cfg.JWTSecret))
+		r.Use(middleware.RequireRole("intern", "supervisor", "hr"))
+
+		// Interns can check in/out
+		r.Post("/api/attendance/check-in", attendanceHandler.CheckIn)
+		r.Post("/api/attendance/check-out", attendanceHandler.CheckOut)
+	})
+
+	// ── Supervisor role ──────────────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Authenticate(cfg.JWTSecret))
+		r.Use(middleware.RequireRole("supervisor", "hr"))
+
+		// Supervisors can create/update evaluations
+		r.Post("/api/evaluations", evaluationHandler.Create)
+		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
+
+		// Supervisors can manage interns
+		r.Post("/api/interns", internHandler.Create)
+		r.Put("/api/interns/{id}", internHandler.Update)
+	})
+
+	// ── HR role (HR manages everything except evaluations) ──────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Authenticate(cfg.JWTSecret))
+		r.Use(middleware.RequireRole("hr"))
+
+		// HR can manage announcements
+		r.Post("/api/announcements", announcementHandler.Create)
+		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
+
+		// HR can delete interns
+		r.Delete("/api/interns/{id}", internHandler.Delete)
+
+		// HR manages departments
 		r.Post("/api/departments", deptHandler.Create)
 		r.Put("/api/departments/{id}", deptHandler.Update)
 		r.Delete("/api/departments/{id}", deptHandler.Delete)
 
-		// Supervisors
-		r.Get("/api/supervisors", supervisorHandler.GetAll)
-		r.Get("/api/supervisors/{id}", supervisorHandler.GetOne)
+		// HR manages supervisors
 		r.Post("/api/supervisors", supervisorHandler.Create)
 		r.Put("/api/supervisors/{id}", supervisorHandler.Update)
 		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
 
-		// Attendance
-		r.Get("/api/attendance", attendanceHandler.GetAll)
-		r.Post("/api/attendance/check-in", attendanceHandler.CheckIn)
-		r.Post("/api/attendance/check-out", attendanceHandler.CheckOut)
-		r.Get("/api/attendance/{internId}", attendanceHandler.GetByIntern)
-
-		// Evaluations
-		r.Post("/api/evaluations", evaluationHandler.Create)
-		r.Get("/api/evaluations", evaluationHandler.GetAll)
-		r.Get("/api/evaluations/{internId}", evaluationHandler.GetByIntern)
-		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
-
-		// Announcements
-		r.Get("/api/announcements", announcementHandler.GetAll)
-		r.Get("/api/announcements/{id}", announcementHandler.GetOne)
-		r.Post("/api/announcements", announcementHandler.Create)
-		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
-
-		// Internship listings (admin only to create)
+		// HR creates internship listings
 		r.Post("/api/internships", internshipHandler.Create)
 	})
 
