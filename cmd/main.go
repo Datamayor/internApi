@@ -16,6 +16,7 @@ import (
 	"intern-api/internal/internships"
 	"intern-api/internal/middleware"
 	"intern-api/internal/supervisors"
+	"intern-api/internal/tasks"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -30,21 +31,22 @@ func main() {
 	database := db.Connect(cfg)
 	defer database.Close()
 
-	authHandler := &auth.Handler{DB: database, JWTSecret: cfg.JWTSecret, JWTExpiryHours: cfg.JWTExpiryHours, JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours}
-	internHandler := &interns.Handler{DB: database}
-	deptHandler := &departments.Handler{DB: database}
-	supervisorHandler := &supervisors.Handler{DB: database}
-	attendanceHandler := &attendance.Handler{DB: database}
-	evaluationHandler := &evaluations.Handler{DB: database}
+	authHandler         := &auth.Handler{DB: database, JWTSecret: cfg.JWTSecret, JWTExpiryHours: cfg.JWTExpiryHours, JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours}
+	internHandler       := &interns.Handler{DB: database}
+	deptHandler         := &departments.Handler{DB: database}
+	supervisorHandler   := &supervisors.Handler{DB: database}
+	attendanceHandler   := &attendance.Handler{DB: database}
+	evaluationHandler   := &evaluations.Handler{DB: database}
 	announcementHandler := &announcements.Handler{DB: database}
-	internshipHandler := &internships.Handler{DB: database}
+	internshipHandler   := &internships.Handler{DB: database}
+	taskHandler         := &tasks.Handler{DB: database}
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(corsMiddleware)
 
-	// ── Public routes (no token needed) ────────────────────────────────────
+	// ── Public routes ───────────────────────────────────────────────────────
 	r.Post("/api/auth/register", authHandler.Register)
 	r.Post("/api/auth/login", authHandler.Login)
 	r.Post("/api/auth/refresh-token", authHandler.RefreshToken)
@@ -55,13 +57,13 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 
-		// Auth — any logged in user
+		// Auth
 		r.Post("/api/auth/logout", authHandler.Logout)
 		r.Get("/api/auth/profile", authHandler.Profile)
 		r.Put("/api/auth/profile", authHandler.UpdateProfile)
 		r.Put("/api/auth/change-password", authHandler.ChangePassword)
 
-		// Any logged in user can read these
+		// Read-only for all roles
 		r.Get("/api/announcements", announcementHandler.GetAll)
 		r.Get("/api/announcements/{id}", announcementHandler.GetOne)
 		r.Get("/api/attendance", attendanceHandler.GetAll)
@@ -74,56 +76,58 @@ func main() {
 		r.Get("/api/supervisors/{id}", supervisorHandler.GetOne)
 		r.Get("/api/interns", internHandler.GetAll)
 		r.Get("/api/interns/{id}", internHandler.GetOne)
+
+		// Tasks - all roles can view
+		r.Get("/api/tasks", taskHandler.GetAll)
+		r.Get("/api/tasks/{id}", taskHandler.GetOne)
+		r.Get("/api/tasks/intern/{internId}", taskHandler.GetByIntern)
+
+		// Interns can update their own task status
+		r.Put("/api/tasks/{id}/status", taskHandler.UpdateStatus)
 	})
 
-	// ── Intern only ─────────────────────────────────────────────────────────
+	// ── Intern + supervisor + hr ────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 		r.Use(middleware.RequireRole("intern", "supervisor", "hr"))
 
-		// Interns can check in/out
 		r.Post("/api/attendance/check-in", attendanceHandler.CheckIn)
 		r.Post("/api/attendance/check-out", attendanceHandler.CheckOut)
 	})
 
-	// ── Supervisor role ──────────────────────────────────────────────────────
+	// ── Supervisor + hr ─────────────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 		r.Use(middleware.RequireRole("supervisor", "hr"))
 
-		// Supervisors can create/update evaluations
 		r.Post("/api/evaluations", evaluationHandler.Create)
 		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
-
-		// Supervisors can manage interns
 		r.Post("/api/interns", internHandler.Create)
 		r.Put("/api/interns/{id}", internHandler.Update)
+
+		// Supervisors and HR can create and update tasks
+		r.Post("/api/tasks", taskHandler.Create)
+		r.Put("/api/tasks/{id}", taskHandler.Update)
 	})
 
-	// ── HR role (HR manages everything except evaluations) ──────────────────
+	// ── HR only ─────────────────────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 		r.Use(middleware.RequireRole("hr"))
 
-		// HR can manage announcements
 		r.Post("/api/announcements", announcementHandler.Create)
 		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
-
-		// HR can delete interns
 		r.Delete("/api/interns/{id}", internHandler.Delete)
-
-		// HR manages departments
 		r.Post("/api/departments", deptHandler.Create)
 		r.Put("/api/departments/{id}", deptHandler.Update)
 		r.Delete("/api/departments/{id}", deptHandler.Delete)
-
-		// HR manages supervisors
 		r.Post("/api/supervisors", supervisorHandler.Create)
 		r.Put("/api/supervisors/{id}", supervisorHandler.Update)
 		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
-
-		// HR creates internship listings
 		r.Post("/api/internships", internshipHandler.Create)
+
+		// Only HR can delete tasks
+		r.Delete("/api/tasks/{id}", taskHandler.Delete)
 	})
 
 	addr := fmt.Sprintf(":%s", cfg.ServerPort)
