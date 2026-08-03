@@ -17,6 +17,7 @@ import (
 	"intern-api/internal/middleware"
 	"intern-api/internal/supervisors"
 	"intern-api/internal/tasks"
+	"intern-api/internal/users"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -40,6 +41,7 @@ func main() {
 	announcementHandler := &announcements.Handler{DB: database}
 	internshipHandler   := &internships.Handler{DB: database}
 	taskHandler         := &tasks.Handler{DB: database}
+	userHandler         := &users.Handler{DB: database}
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
@@ -77,12 +79,10 @@ func main() {
 		r.Get("/api/interns", internHandler.GetAll)
 		r.Get("/api/interns/{id}", internHandler.GetOne)
 
-		// Tasks - all roles can view
+		// Tasks - all roles can view and update status
 		r.Get("/api/tasks", taskHandler.GetAll)
 		r.Get("/api/tasks/{id}", taskHandler.GetOne)
 		r.Get("/api/tasks/intern/{internId}", taskHandler.GetByIntern)
-
-		// Interns can update their own task status
 		r.Put("/api/tasks/{id}/status", taskHandler.UpdateStatus)
 	})
 
@@ -104,8 +104,6 @@ func main() {
 		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
 		r.Post("/api/interns", internHandler.Create)
 		r.Put("/api/interns/{id}", internHandler.Update)
-
-		// Supervisors and HR can create and update tasks
 		r.Post("/api/tasks", taskHandler.Create)
 		r.Put("/api/tasks/{id}", taskHandler.Update)
 	})
@@ -125,9 +123,11 @@ func main() {
 		r.Put("/api/supervisors/{id}", supervisorHandler.Update)
 		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
 		r.Post("/api/internships", internshipHandler.Create)
-
-		// Only HR can delete tasks
 		r.Delete("/api/tasks/{id}", taskHandler.Delete)
+
+		// User management — HR only
+		r.Get("/api/users", userHandler.GetAll)
+		r.Put("/api/users/{id}/role", userHandler.UpdateRole)
 	})
 
 	addr := fmt.Sprintf(":%s", cfg.ServerPort)
