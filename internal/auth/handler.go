@@ -20,6 +20,9 @@ type Handler struct {
 	JWTSecret             string
 	JWTExpiryHours        int
 	JWTRefreshExpiryHours int
+	ResendAPIKey          string
+	EmailFrom             string
+	FrontendURL           string
 }
 
 type User struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"intern-api/config"
 	"intern-api/internal/announcements"
@@ -32,16 +33,24 @@ func main() {
 	database := db.Connect(cfg)
 	defer database.Close()
 
-	authHandler         := &auth.Handler{DB: database, JWTSecret: cfg.JWTSecret, JWTExpiryHours: cfg.JWTExpiryHours, JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours}
-	internHandler       := &interns.Handler{DB: database}
-	deptHandler         := &departments.Handler{DB: database}
-	supervisorHandler   := &supervisors.Handler{DB: database}
-	attendanceHandler   := &attendance.Handler{DB: database}
-	evaluationHandler   := &evaluations.Handler{DB: database}
+	authHandler := &auth.Handler{
+		DB:                    database,
+		JWTSecret:             cfg.JWTSecret,
+		JWTExpiryHours:        cfg.JWTExpiryHours,
+		JWTRefreshExpiryHours: cfg.JWTRefreshExpiryHours,
+		ResendAPIKey:          os.Getenv("RESEND_API_KEY"),
+		EmailFrom:             os.Getenv("EMAIL_FROM"),
+		FrontendURL:           os.Getenv("FRONTEND_URL"),
+	}
+	internHandler := &interns.Handler{DB: database}
+	deptHandler := &departments.Handler{DB: database}
+	supervisorHandler := &supervisors.Handler{DB: database}
+	attendanceHandler := &attendance.Handler{DB: database}
+	evaluationHandler := &evaluations.Handler{DB: database}
 	announcementHandler := &announcements.Handler{DB: database}
-	internshipHandler   := &internships.Handler{DB: database}
-	taskHandler         := &tasks.Handler{DB: database}
-	userHandler         := &users.Handler{DB: database}
+	internshipHandler := &internships.Handler{DB: database}
+	taskHandler := &tasks.Handler{DB: database}
+	userHandler := &users.Handler{DB: database}
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
@@ -51,6 +60,8 @@ func main() {
 	// ── Public routes ───────────────────────────────────────────────────────
 	r.Post("/api/auth/register", authHandler.Register)
 	r.Post("/api/auth/login", authHandler.Login)
+	r.Post("/api/auth/forgot-password", authHandler.ForgotPassword)
+	r.Post("/api/auth/reset-password", authHandler.ResetPassword)
 	r.Post("/api/auth/refresh-token", authHandler.RefreshToken)
 	r.Get("/api/internships", internshipHandler.GetAll)
 	r.Get("/api/internships/{id}", internshipHandler.GetOne)
