@@ -78,32 +78,41 @@ func main() {
 		r.Put("/api/auth/profile", authHandler.UpdateProfile)
 		r.Put("/api/auth/change-password", authHandler.ChangePassword)
 
-		// Read-only for all roles
+		// Announcements
 		r.Get("/api/announcements", announcementHandler.GetAll)
 		r.Get("/api/announcements/{id}", announcementHandler.GetOne)
+
+		// Attendance
 		r.Get("/api/attendance", attendanceHandler.GetAll)
 		r.Get("/api/attendance/{internId}", attendanceHandler.GetByIntern)
+
+		// Evaluations
 		r.Get("/api/evaluations", evaluationHandler.GetAll)
 		r.Get("/api/evaluations/{internId}", evaluationHandler.GetByIntern)
+
+		// Departments
 		r.Get("/api/departments", deptHandler.GetAll)
 		r.Get("/api/departments/{id}", deptHandler.GetOne)
+
+		// Supervisors
 		r.Get("/api/supervisors", supervisorHandler.GetAll)
 		r.Get("/api/supervisors/{id}", supervisorHandler.GetOne)
-		r.Get("/api/interns", internHandler.GetAll)
-		r.Get("/api/interns/{id}", internHandler.GetOne)
-	    r.Get("/api/interns/status", internHandler.GetByStatus)
-		
 
-		// Tasks - all roles can view and update status
+		// Interns — static routes MUST come before {id}
+		r.Get("/api/interns", internHandler.GetAll)
+		r.Get("/api/interns/status", internHandler.GetByStatus) // ← static first
+		r.Get("/api/interns/{id}", internHandler.GetOne)        // ← parameterized after
+
+		// Tasks
 		r.Get("/api/tasks", taskHandler.GetAll)
-		r.Get("/api/tasks/{id}", taskHandler.GetOne)
-		r.Get("/api/tasks/intern/{internId}", taskHandler.GetByIntern)
+		r.Get("/api/tasks/intern/{internId}", taskHandler.GetByIntern) // ← static first
+		r.Get("/api/tasks/{id}", taskHandler.GetOne)                   // ← parameterized after
 		r.Put("/api/tasks/{id}/status", taskHandler.UpdateStatus)
 
-		// Leave - all roles can view
+		// Leave
 		r.Get("/api/leave", leaveHandler.GetAll)
-		r.Get("/api/leave/{id}", leaveHandler.GetOne)
-		r.Get("/api/leave/intern/{internId}", leaveHandler.GetByIntern)
+		r.Get("/api/leave/intern/{internId}", leaveHandler.GetByIntern) // ← static first
+		r.Get("/api/leave/{id}", leaveHandler.GetOne)                   // ← parameterized after
 	})
 
 	// ── Intern + supervisor + hr ────────────────────────────────────────────
@@ -114,7 +123,6 @@ func main() {
 		r.Post("/api/attendance/check-in", attendanceHandler.CheckIn)
 		r.Post("/api/attendance/check-out", attendanceHandler.CheckOut)
 
-		// Any logged in user can submit and cancel leave requests
 		r.Post("/api/leave", leaveHandler.Create)
 		r.Delete("/api/leave/{id}", leaveHandler.Delete)
 	})
@@ -130,8 +138,6 @@ func main() {
 		r.Put("/api/interns/{id}", internHandler.Update)
 		r.Post("/api/tasks", taskHandler.Create)
 		r.Put("/api/tasks/{id}", taskHandler.Update)
-
-		// Approve or reject leave + view intern status overview
 		r.Put("/api/leave/{id}/review", leaveHandler.Review)
 	})
 
@@ -151,8 +157,6 @@ func main() {
 		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
 		r.Post("/api/internships", internshipHandler.Create)
 		r.Delete("/api/tasks/{id}", taskHandler.Delete)
-
-		// User management — HR only
 		r.Get("/api/users", userHandler.GetAll)
 		r.Put("/api/users/{id}/role", userHandler.UpdateRole)
 	})
