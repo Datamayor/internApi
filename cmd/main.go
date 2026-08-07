@@ -91,6 +91,7 @@ func main() {
 		r.Get("/api/supervisors/{id}", supervisorHandler.GetOne)
 		r.Get("/api/interns", internHandler.GetAll)
 		r.Get("/api/interns/{id}", internHandler.GetOne)
+	    r.Get("/api/interns/status", internHandler.GetByStatus)
 
 		// Tasks - all roles can view and update status
 		r.Get("/api/tasks", taskHandler.GetAll)
@@ -131,7 +132,6 @@ func main() {
 
 		// Approve or reject leave + view intern status overview
 		r.Put("/api/leave/{id}/review", leaveHandler.Review)
-		r.Get("/api/interns/status", internHandler.GetByStatus)
 	})
 
 	// ── HR only ─────────────────────────────────────────────────────────────
