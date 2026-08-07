@@ -24,9 +24,8 @@ type Intern struct {
 	EndDate      *time.Time `db:"end_date" json:"end_date"`
 	Status       string     `db:"status" json:"status"`
 	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
-	// Joined fields from users table
-	Name  string `db:"name" json:"name"`
-	Email string `db:"email" json:"email"`
+	Name         string     `db:"name" json:"name"`
+	Email        string     `db:"email" json:"email"`
 }
 
 // GET /api/interns
@@ -41,6 +40,9 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch interns")
 		return
+	}
+	if interns == nil {
+		interns = []Intern{}
 	}
 	middleware.JSON(w, http.StatusOK, interns)
 }
@@ -74,7 +76,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		UserID       int    `json:"user_id"`
 		DepartmentID *int   `json:"department_id"`
 		SupervisorID *int   `json:"supervisor_id"`
-		StartDate    string `json:"start_date"` // "YYYY-MM-DD"
+		StartDate    string `json:"start_date"`
 		EndDate      string `json:"end_date"`
 		Status       string `json:"status"`
 	}
@@ -97,8 +99,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	err := h.DB.QueryRowx(`
 		INSERT INTO interns (user_id, department_id, supervisor_id, start_date, end_date, status)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING *
-	`, body.UserID, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status,
+		RETURNING id, user_id, department_id, supervisor_id, start_date, end_date, status, created_at
+	`, body.UserID, body.DepartmentID, body.SupervisorID,
+		nullString(body.StartDate), nullString(body.EndDate), body.Status,
 	).StructScan(&intern)
 
 	if err != nil {
@@ -130,7 +133,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		UPDATE interns
 		SET department_id = $1, supervisor_id = $2, start_date = $3, end_date = $4, status = $5
 		WHERE id = $6
-	`, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status, id)
+	`, body.DepartmentID, body.SupervisorID,
+		nullString(body.StartDate), nullString(body.EndDate), body.Status, id)
 
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to update intern")
@@ -159,17 +163,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	middleware.JSON(w, http.StatusOK, map[string]string{"message": "intern deleted"})
 }
 
-// nullString returns nil if s is empty (so SQL treats it as NULL)
-func nullString(s string) interface{} {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
-// GET /api/interns/status — get all interns grouped by status (supervisor, hr)
+// GET /api/interns/status
 func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
-	// Optional filter: ?status=active or ?status=on_leave
 	status := r.URL.Query().Get("status")
 
 	var interns []Intern
@@ -197,7 +192,7 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Group by status
+	// Initialize empty slices so JSON returns [] not null
 	grouped := map[string][]Intern{
 		"active":     {},
 		"on_leave":   {},
@@ -211,7 +206,7 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	middleware.JSON(w, http.StatusOK, map[string]any{
+	middleware.JSON(w, http.StatusOK, map[string]interface{}{
 		"summary": map[string]int{
 			"active":     len(grouped["active"]),
 			"on_leave":   len(grouped["on_leave"]),
@@ -221,4 +216,11 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		},
 		"interns": grouped,
 	})
+}
+
+func nullString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }

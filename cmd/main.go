@@ -92,6 +92,7 @@ func main() {
 		r.Get("/api/interns", internHandler.GetAll)
 		r.Get("/api/interns/{id}", internHandler.GetOne)
 	    r.Get("/api/interns/status", internHandler.GetByStatus)
+		
 
 		// Tasks - all roles can view and update status
 		r.Get("/api/tasks", taskHandler.GetAll)
