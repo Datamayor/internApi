@@ -164,7 +164,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	middleware.JSON(w, http.StatusOK, map[string]string{"message": "intern deleted"})
 }
 
-
 // GET /api/interns/status
 func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 	statusFilter := r.URL.Query().Get("status")
@@ -241,7 +240,6 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		"interns": grouped,
 	})
 }
-
 func nullString(s string) interface{} {
 	if s == "" {
 		return nil
