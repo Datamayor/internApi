@@ -164,7 +164,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	middleware.JSON(w, http.StatusOK, map[string]string{"message": "intern deleted"})
 }
 
-// GET /api/interns/status
+
 // GET /api/interns/status
 func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
@@ -194,21 +194,21 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch intern_ids currently on an approved leave that covers today
-	onLeaveIDs := map[int]bool{}
-	var ids []int
-	err = h.DB.Select(&ids, `
+	// leave_requests.intern_id actually references users.id, not interns.id
+	onLeaveUserIDs := map[int]bool{}
+	var userIDs []int
+	err = h.DB.Select(&userIDs, `
 		SELECT intern_id FROM leave_requests
 		WHERE status = 'approved'
-		AND start_date <= now()
-		AND end_date >= now()
+		AND start_date <= CURRENT_DATE
+		AND end_date >= CURRENT_DATE
 	`)
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch leave data")
 		return
 	}
-	for _, id := range ids {
-		onLeaveIDs[id] = true
+	for _, uid := range userIDs {
+		onLeaveUserIDs[uid] = true
 	}
 
 	// Initialize empty slices so JSON returns [] not null
@@ -221,9 +221,7 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 
 	for _, intern := range interns {
 		effectiveStatus := intern.Status
-		// Only override active interns as on_leave — don't reclassify
-		// completed/terminated interns just because an old leave record overlaps
-		if effectiveStatus == "active" && onLeaveIDs[intern.ID] {
+		if effectiveStatus == "active" && onLeaveUserIDs[intern.UserID] {
 			effectiveStatus = "on_leave"
 		}
 		if _, ok := grouped[effectiveStatus]; ok {
