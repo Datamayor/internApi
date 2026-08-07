@@ -15,6 +15,7 @@ import (
 	"intern-api/internal/evaluations"
 	"intern-api/internal/interns"
 	"intern-api/internal/internships"
+	"intern-api/internal/leave"
 	"intern-api/internal/middleware"
 	"intern-api/internal/supervisors"
 	"intern-api/internal/tasks"
@@ -42,15 +43,16 @@ func main() {
 		EmailFrom:             os.Getenv("EMAIL_FROM"),
 		FrontendURL:           os.Getenv("FRONTEND_URL"),
 	}
-	internHandler := &interns.Handler{DB: database}
-	deptHandler := &departments.Handler{DB: database}
-	supervisorHandler := &supervisors.Handler{DB: database}
-	attendanceHandler := &attendance.Handler{DB: database}
-	evaluationHandler := &evaluations.Handler{DB: database}
+	internHandler       := &interns.Handler{DB: database}
+	deptHandler         := &departments.Handler{DB: database}
+	supervisorHandler   := &supervisors.Handler{DB: database}
+	attendanceHandler   := &attendance.Handler{DB: database}
+	evaluationHandler   := &evaluations.Handler{DB: database}
 	announcementHandler := &announcements.Handler{DB: database}
-	internshipHandler := &internships.Handler{DB: database}
-	taskHandler := &tasks.Handler{DB: database}
-	userHandler := &users.Handler{DB: database}
+	internshipHandler   := &internships.Handler{DB: database}
+	taskHandler         := &tasks.Handler{DB: database}
+	userHandler         := &users.Handler{DB: database}
+	leaveHandler        := &leave.Handler{DB: database}
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
@@ -95,6 +97,11 @@ func main() {
 		r.Get("/api/tasks/{id}", taskHandler.GetOne)
 		r.Get("/api/tasks/intern/{internId}", taskHandler.GetByIntern)
 		r.Put("/api/tasks/{id}/status", taskHandler.UpdateStatus)
+
+		// Leave - all roles can view
+		r.Get("/api/leave", leaveHandler.GetAll)
+		r.Get("/api/leave/{id}", leaveHandler.GetOne)
+		r.Get("/api/leave/intern/{internId}", leaveHandler.GetByIntern)
 	})
 
 	// ── Intern + supervisor + hr ────────────────────────────────────────────
@@ -104,6 +111,10 @@ func main() {
 
 		r.Post("/api/attendance/check-in", attendanceHandler.CheckIn)
 		r.Post("/api/attendance/check-out", attendanceHandler.CheckOut)
+
+		// Any logged in user can submit and cancel leave requests
+		r.Post("/api/leave", leaveHandler.Create)
+		r.Delete("/api/leave/{id}", leaveHandler.Delete)
 	})
 
 	// ── Supervisor + hr ─────────────────────────────────────────────────────
@@ -117,6 +128,10 @@ func main() {
 		r.Put("/api/interns/{id}", internHandler.Update)
 		r.Post("/api/tasks", taskHandler.Create)
 		r.Put("/api/tasks/{id}", taskHandler.Update)
+
+		// Approve or reject leave + view intern status overview
+		r.Put("/api/leave/{id}/review", leaveHandler.Review)
+		r.Get("/api/interns/status", internHandler.GetByStatus)
 	})
 
 	// ── HR only ─────────────────────────────────────────────────────────────

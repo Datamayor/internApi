@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"intern-api/internal/middleware"
-	"log"
 	"net/http"
 	"time"
 
@@ -25,7 +24,6 @@ type Intern struct {
 	EndDate      *time.Time `db:"end_date" json:"end_date"`
 	Status       string     `db:"status" json:"status"`
 	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time  `db:"updated_at" json:"updated_at"` // <-- add this
 	// Joined fields from users table
 	Name  string `db:"name" json:"name"`
 	Email string `db:"email" json:"email"`
@@ -41,7 +39,6 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 		ORDER BY i.created_at DESC
 	`)
 	if err != nil {
-		log.Println("GetAll db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch interns")
 		return
 	}
@@ -64,7 +61,6 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 		middleware.Error(w, http.StatusNotFound, "intern not found")
 		return
 	} else if err != nil {
-		log.Println("GetOne db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "database error")
 		return
 	}
@@ -99,14 +95,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var intern Intern
 	err := h.DB.QueryRowx(`
-    INSERT INTO interns (user_id, department_id, supervisor_id, start_date, end_date, status)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING id, user_id, department_id, supervisor_id, start_date, end_date, status, created_at
-`, body.UserID, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status,
+		INSERT INTO interns (user_id, department_id, supervisor_id, start_date, end_date, status)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING *
+	`, body.UserID, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status,
 	).StructScan(&intern)
 
 	if err != nil {
-		log.Println("Create db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to create intern")
 		return
 	}
@@ -138,7 +133,6 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	`, body.DepartmentID, body.SupervisorID, nullString(body.StartDate), nullString(body.EndDate), body.Status, id)
 
 	if err != nil {
-		log.Println("Update db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to update intern")
 		return
 	}
@@ -152,7 +146,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.DB.Exec(`DELETE FROM interns WHERE id = $1`, id)
 	if err != nil {
-		log.Println("Delete db error:", err)
 		middleware.Error(w, http.StatusInternalServerError, "failed to delete intern")
 		return
 	}
@@ -172,4 +165,60 @@ func nullString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// GET /api/interns/status — get all interns grouped by status (supervisor, hr)
+func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
+	// Optional filter: ?status=active or ?status=on_leave
+	status := r.URL.Query().Get("status")
+
+	var interns []Intern
+	var err error
+
+	if status != "" {
+		err = h.DB.Select(&interns, `
+			SELECT i.*, u.name, u.email
+			FROM interns i
+			JOIN users u ON u.id = i.user_id
+			WHERE i.status = $1
+			ORDER BY u.name
+		`, status)
+	} else {
+		err = h.DB.Select(&interns, `
+			SELECT i.*, u.name, u.email
+			FROM interns i
+			JOIN users u ON u.id = i.user_id
+			ORDER BY i.status, u.name
+		`)
+	}
+
+	if err != nil {
+		middleware.Error(w, http.StatusInternalServerError, "failed to fetch interns")
+		return
+	}
+
+	// Group by status
+	grouped := map[string][]Intern{
+		"active":     {},
+		"on_leave":   {},
+		"completed":  {},
+		"terminated": {},
+	}
+
+	for _, intern := range interns {
+		if _, ok := grouped[intern.Status]; ok {
+			grouped[intern.Status] = append(grouped[intern.Status], intern)
+		}
+	}
+
+	middleware.JSON(w, http.StatusOK, map[string]any{
+		"summary": map[string]int{
+			"active":     len(grouped["active"]),
+			"on_leave":   len(grouped["on_leave"]),
+			"completed":  len(grouped["completed"]),
+			"terminated": len(grouped["terminated"]),
+			"total":      len(interns),
+		},
+		"interns": grouped,
+	})
 }
