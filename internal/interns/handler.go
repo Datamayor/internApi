@@ -167,28 +167,15 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/interns/status
 func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
-	status := r.URL.Query().Get("status")
+	statusFilter := r.URL.Query().Get("status")
 
 	var interns []Intern
-	var err error
-
-	if status != "" {
-		err = h.DB.Select(&interns, `
-			SELECT i.*, u.name, u.email
-			FROM interns i
-			JOIN users u ON u.id = i.user_id
-			WHERE i.status = $1
-			ORDER BY u.name
-		`, status)
-	} else {
-		err = h.DB.Select(&interns, `
-			SELECT i.*, u.name, u.email
-			FROM interns i
-			JOIN users u ON u.id = i.user_id
-			ORDER BY i.status, u.name
-		`)
-	}
-
+	err := h.DB.Select(&interns, `
+		SELECT i.*, u.name, u.email
+		FROM interns i
+		JOIN users u ON u.id = i.user_id
+		ORDER BY i.status, u.name
+	`)
 	if err != nil {
 		middleware.Error(w, http.StatusInternalServerError, "failed to fetch interns")
 		return
@@ -229,13 +216,27 @@ func (h *Handler) GetByStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// If a status filter was passed, narrow the response to just that bucket
+	if statusFilter != "" {
+		filtered := map[string][]Intern{
+			"active":     {},
+			"on_leave":   {},
+			"completed":  {},
+			"terminated": {},
+		}
+		if list, ok := grouped[statusFilter]; ok {
+			filtered[statusFilter] = list
+		}
+		grouped = filtered
+	}
+
 	middleware.JSON(w, http.StatusOK, map[string]interface{}{
 		"summary": map[string]int{
 			"active":     len(grouped["active"]),
 			"on_leave":   len(grouped["on_leave"]),
 			"completed":  len(grouped["completed"]),
 			"terminated": len(grouped["terminated"]),
-			"total":      len(interns),
+			"total":      len(grouped["active"]) + len(grouped["on_leave"]) + len(grouped["completed"]) + len(grouped["terminated"]),
 		},
 		"interns": grouped,
 	})
