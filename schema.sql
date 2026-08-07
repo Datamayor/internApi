@@ -114,3 +114,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     created_at  TIMESTAMP DEFAULT NOW(),
     updated_at  TIMESTAMP DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_internship_per_user
+ON interns (user_id)
+WHERE status IN ('active', 'on_leave');
