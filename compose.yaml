@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: daccubin-interns-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-intern_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - intern_db_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./migration_password_resets.sql:/docker-entrypoint-initdb.d/02_password_resets.sql:ro
+      - ./seed_demo_users.sql:/docker-entrypoint-initdb.d/03_seed_demo_users.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: daccubin-interns-api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      PORT: 8080
+    ports:
+      - "${PORT:-8080}:8080"
+
+volumes:
+  intern_db_data:
