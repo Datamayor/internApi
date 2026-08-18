@@ -127,36 +127,52 @@ func main() {
 		r.Delete("/api/leave/{id}", leaveHandler.Delete)
 	})
 
-	// ── Supervisor + hr ─────────────────────────────────────────────────────
+		// ── Supervisor + hr (most management actions) ───────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 		r.Use(middleware.RequireRole("supervisor", "hr"))
 
-		r.Post("/api/evaluations", evaluationHandler.Create)
-		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
+		// Interns
 		r.Post("/api/interns", internHandler.Create)
 		r.Put("/api/interns/{id}", internHandler.Update)
+		r.Delete("/api/interns/{id}", internHandler.Delete)
+
+		// Evaluations
+		r.Post("/api/evaluations", evaluationHandler.Create)
+		r.Put("/api/evaluations/{id}", evaluationHandler.Update)
+
+		// Tasks
 		r.Post("/api/tasks", taskHandler.Create)
 		r.Put("/api/tasks/{id}", taskHandler.Update)
+		r.Delete("/api/tasks/{id}", taskHandler.Delete)
+
+		// Departments
+		r.Post("/api/departments", deptHandler.Create)
+		r.Put("/api/departments/{id}", deptHandler.Update)
+		r.Delete("/api/departments/{id}", deptHandler.Delete)
+
+		// Supervisors
+		r.Post("/api/supervisors", supervisorHandler.Create)
+		r.Put("/api/supervisors/{id}", supervisorHandler.Update)
+		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
+
+		// Announcements
+		r.Post("/api/announcements", announcementHandler.Create)
+		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
+
+		// Internship listings
+		r.Post("/api/internships", internshipHandler.Create)
+
+		// Leave review
 		r.Put("/api/leave/{id}/review", leaveHandler.Review)
 	})
 
-	// ── HR only ─────────────────────────────────────────────────────────────
+	// ── HR only (user management) ───────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Authenticate(cfg.JWTSecret))
 		r.Use(middleware.RequireRole("hr"))
 
-		r.Post("/api/announcements", announcementHandler.Create)
-		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
-		r.Delete("/api/interns/{id}", internHandler.Delete)
-		r.Post("/api/departments", deptHandler.Create)
-		r.Put("/api/departments/{id}", deptHandler.Update)
-		r.Delete("/api/departments/{id}", deptHandler.Delete)
-		r.Post("/api/supervisors", supervisorHandler.Create)
-		r.Put("/api/supervisors/{id}", supervisorHandler.Update)
-		r.Delete("/api/supervisors/{id}", supervisorHandler.Delete)
-		r.Post("/api/internships", internshipHandler.Create)
-		r.Delete("/api/tasks/{id}", taskHandler.Delete)
+		// Only HR can view all users and promote/demote
 		r.Get("/api/users", userHandler.GetAll)
 		r.Put("/api/users/{id}/role", userHandler.UpdateRole)
 	})
